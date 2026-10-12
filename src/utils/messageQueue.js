@@ -18,12 +18,13 @@ const subscribeMessage = async (channel, service, binding_key) => {
         channel.bindQueue(applicationQueue.queue, EXCHANGE_NAME, binding_key);
         channel.consume(applicationQueue.queue, async msg => {
             if (msg !== null) {
-                console.log("Received data from message queue:", msg.content.toString());
                 try {
                     const payload = JSON.parse(msg.content.toString());
+                    const correlationId = payload.correlationId || (payload.data && payload.data.correlationId) || 'N/A';
+                    console.log(`[TRACING] [${correlationId}] Received message from queue:`, msg.content.toString());
                     if (service && payload.data) {
                         await service.createNotification(payload.data);
-                        console.log("Successfully registered notification ticket from queue event");
+                        console.log(`[TRACING] [${correlationId}] Successfully registered notification ticket from queue event`);
                     }
                 } catch (processErr) {
                     console.error("Error processing message payload:", processErr);

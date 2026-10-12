@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const helmet = require('helmet');
 const cors = require('cors');
 const { PORT, REMINDER_BINDING_KEY } = require('./config/serverConfig');
@@ -15,6 +16,21 @@ const setupAndStartServer = async () => {
 
     app.use(helmet());
     app.use(cors());
+
+    // Distributed Tracing: Correlation ID Middleware
+    app.use((req, res, next) => {
+        const correlationId = req.headers['x-correlation-id'] || crypto.randomUUID();
+        req.correlationId = correlationId;
+        res.setHeader('x-correlation-id', correlationId);
+
+        const start = Date.now();
+        res.on('finish', () => {
+            const duration = Date.now() - start;
+            console.log(`[TRACING] [${correlationId}] ${req.method} ${req.originalUrl || req.url} - ${res.statusCode} (${duration}ms)`);
+        });
+        next();
+    });
+
     app.use(express.json());
     app.use(express.urlencoded({extended:true}));
 
@@ -40,6 +56,22 @@ const setupAndStartServer = async () => {
                 error: error.message
             });
         }
+    });
+
+    app.get('/metrics', (req, res) => {
+        const memory = process.memoryUsage();
+        return res.status(200).json({
+            service: 'Airline_Reminder_Service',
+            status: 'UP',
+            timestamp: new Date().toISOString(),
+            uptimeSeconds: Math.floor(process.uptime()),
+            memory: {
+                rssMb: +(memory.rss / (1024 * 1024)).toFixed(2),
+                heapTotalMb: +(memory.heapTotal / (1024 * 1024)).toFixed(2),
+                heapUsedMb: +(memory.heapUsed / (1024 * 1024)).toFixed(2)
+            },
+            nodeVersion: process.version
+        });
     });
 
     app.post('/api/v1/tickets', TicketMiddlewares.validateCreateTicket, TicketController.create);
