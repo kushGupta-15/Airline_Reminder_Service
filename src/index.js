@@ -76,8 +76,16 @@ const setupAndStartServer = async () => {
 
     app.post('/api/v1/tickets', TicketMiddlewares.validateCreateTicket, TicketController.create);
 
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
         console.log(`Server is running on port ${PORT}`);
+        if (process.env.DB_SYNC === 'true') {
+            try {
+                await db.sequelize.sync({ alter: true });
+                console.log('[DB_SYNC] Reminder service schema synced successfully.');
+            } catch (err) {
+                console.error('[DB_SYNC ERROR]', err.message);
+            }
+        }
         setupJobs();
     });
 }
