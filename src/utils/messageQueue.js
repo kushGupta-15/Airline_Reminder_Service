@@ -11,15 +11,25 @@ const createChannel = async () => {
     }
 }
 
-const subscribeMessage = async (channel,service, binding_key) => {
+const subscribeMessage = async (channel, service, binding_key) => {
     try {
         const applicationQueue = await channel.assertQueue('QUEUE_NAME');
 
         channel.bindQueue(applicationQueue.queue, EXCHANGE_NAME, binding_key);
-        channel.consume(applicationQueue.queue, msg => {
-            console.log("Recieved data");
-            console.log(msg.content.toString());
-            console.ack(msg);
+        channel.consume(applicationQueue.queue, async msg => {
+            if (msg !== null) {
+                console.log("Received data from message queue:", msg.content.toString());
+                try {
+                    const payload = JSON.parse(msg.content.toString());
+                    if (service && payload.data) {
+                        await service.createNotification(payload.data);
+                        console.log("Successfully registered notification ticket from queue event");
+                    }
+                } catch (processErr) {
+                    console.error("Error processing message payload:", processErr);
+                }
+                channel.ack(msg);
+            }
         });
     } catch (error) {
         throw error;
